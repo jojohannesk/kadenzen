@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kadenz-Würfel</title>
+<style>
+  :root { --bg: #f6f3ee; --text: #1e1b18; --muted: #8a8177; --accent: #8a3b2e; --line: #e4ddd3; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #17150f; --text: #f1ece4; --muted: #8f877b; --accent: #e08a6f; --line: #3a352c; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: Georgia, "Times New Roman", serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 24px 16px;
+    cursor: pointer; user-select: none;
+  }
+  #out { text-align: center; }
+  #key { font-size: clamp(3rem, 14vw, 5rem); font-weight: bold; color: var(--accent); line-height: 1.1; }
+  #lage { font-size: clamp(1.5rem, 6vw, 2.2rem); margin-top: 12px; }
+  #vorhalt { font-size: clamp(1.1rem, 4.5vw, 1.5rem); margin-top: 10px; color: var(--muted); min-height: 1.5em; }
+  .rolling { opacity: .45; filter: blur(.6px); }
+  .rolling #key { animation: shake .12s linear infinite; }
+  @keyframes shake { 0%,100% { transform: translateY(0) rotate(0); } 25% { transform: translateY(-3px) rotate(-1.5deg); } 75% { transform: translateY(3px) rotate(1.5deg); } }
+  .land { animation: land .35s cubic-bezier(.2,1.6,.4,1); }
+  @keyframes land { from { transform: scale(.85); opacity: .5; } to { transform: scale(1); opacity: 1; } }
+  details {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    color: var(--muted); font-size: .85rem; cursor: default; max-width: calc(100% - 32px);
+  }
+  summary { cursor: pointer; text-align: center; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  .opts { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+  .opts div { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 4px 0; }
+  .opts label { cursor: pointer; white-space: nowrap; }
+</style>
+</head>
+<body>
+  <div id="out">
+    <div id="key">Tippen zum Würfeln</div>
+    <div id="lage"></div>
+    <div id="vorhalt"></div>
+  </div>
+
+  <details id="settings">
+    <summary>Einstellungen</summary>
+    <div class="opts">
+      <div><label><input type="checkbox" id="dur" checked> Dur</label><label><input type="checkbox" id="moll" checked> Moll</label></div>
+      <div>
+        <label><input type="checkbox" class="lg" value="Oktavlage" checked> Oktavlage</label>
+        <label><input type="checkbox" class="lg" value="Terzlage" checked> Terzlage</label>
+        <label><input type="checkbox" class="lg" value="Quintlage" checked> Quintlage</label>
+      </div>
+      <div>
+        <label><input type="checkbox" class="vh" value="mit Quartsextvorhalt" checked> Quartsextvorhalt</label>
+        <label><input type="checkbox" class="vh" value="mit Quartvorhalt" checked> Quartvorhalt</label>
+      </div>
+      <div><label>Vorhalt-Wahrscheinlichkeit <input type="range" id="prob" min="0" max="100" value="50"></label></div>
+    </div>
+  </details>
+
+<script>
+  const DUR  = ["C-Dur","G-Dur","D-Dur","A-Dur","E-Dur","H-Dur","Fis-Dur|Ges-Dur","Des-Dur","As-Dur","Es-Dur","B-Dur","F-Dur"];
+  const MOLL = ["a-Moll","e-Moll","h-Moll","fis-Moll","cis-Moll","gis-Moll","dis-Moll|es-Moll","b-Moll","f-Moll","c-Moll","g-Moll","d-Moll"];
+  const $ = id => document.getElementById(id);
+  const rnd = a => a[Math.floor(Math.random() * a.length)];
+  const checked = cls => [...document.querySelectorAll("." + cls + ":checked")].map(c => c.value);
+  let last = "";
+
+  function roll() {
+    if (busy) return;
+    let keys = [];
+    if ($("dur").checked) keys = keys.concat(DUR);
+    if ($("moll").checked) keys = keys.concat(MOLL);
+    const lagen = checked("lg");
+    if (!keys.length || !lagen.length) { $("key").textContent = "–"; $("lage").textContent = $("vorhalt").textContent = ""; return; }
+
+    let key, lage, combo, n = 0;
+    do { key = rnd(keys); lage = rnd(lagen); combo = key + lage; n++; }
+    while (combo === last && n < 20 && keys.length * lagen.length > 1);
+    last = combo;
+
+    const vh = checked("vh");
+    const vorhalt = vh.length && Math.random() * 100 < +$("prob").value ? rnd(vh) : "";
+
+    const final = [rnd(key.split("|")), lage, vorhalt];
+    const pool = [keys, lagen, vh.length ? ["", ...vh] : [""]];
+    busy = true;
+    $("out").classList.add("rolling");
+    let step = 0, delay = 35;
+    (function tick() {
+      if (delay > 190) {
+        [$("key").textContent, $("lage").textContent, $("vorhalt").textContent] = final;
+        $("out").classList.remove("rolling");
+        const o = $("out"); o.classList.remove("land"); void o.offsetWidth; o.classList.add("land");
+        busy = false;
+        return;
+      }
+      $("key").textContent = rnd(rnd(pool[0]).split("|"));
+      $("lage").textContent = rnd(pool[1]);
+      $("vorhalt").textContent = rnd(pool[2]);
+      step++; delay *= 1.18;
+      setTimeout(tick, delay);
+    })();
+  }
+  let busy = false;
+
+  document.body.addEventListener("click", e => { if (!e.target.closest("details")) roll(); });
+  document.addEventListener("keydown", e => {
+    if ((e.code === "Space" || e.code === "Enter") && e.target.tagName !== "INPUT") { e.preventDefault(); roll(); }
+  });
+</script>
+</body>
+</html>
